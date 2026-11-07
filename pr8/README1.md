@@ -244,6 +244,7 @@ pr8/
 │   └── stress_test.py
 ├── screenshots/
 │   ├── grafana_dashboard.png
+│   ├── grafana_dashboard1.png
 │   ├── stress_test.png
 │   ├── ota_update.png
 │   ├── ota_migration_rollback.png
@@ -272,6 +273,8 @@ pr8/
 На рисунку представлено інформаційну панель Smart Greenhouse з графіками показників датчиків та основними KPI системи.
 
 ![Grafana Dashboard](screenshots/grafana_dashboard.png)
+
+![Grafana Dashboard1](screenshots/grafana_dashboard1.png)
 
 ### 13.2. Результати стрес-тестування
 
