@@ -1,0 +1,21 @@
+{
+  "version": "2.0",
+  "device_model": "ESP32-Greenhouse",
+  "release_date": "2026-11-07",
+  "description": "Updated Smart Greenhouse firmware",
+  "features": [
+    "MQTT communication",
+    "Temperature and humidity monitoring",
+    "Soil monitoring",
+    "CO2 monitoring",
+    "Lighting and irrigation control",
+    "Device heartbeat and health monitoring",
+    "Improved anomaly detection",
+    "Secure OTA update support",
+    "Configuration migration",
+    "Improved error handling"
+  ],
+  "mqtt_protocol": "MQTT",
+  "config_version": 2,
+  "minimum_compatible_version": "1.0"
+}

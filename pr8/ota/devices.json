@@ -1,0 +1,59 @@
+{
+    "devices": [
+        {
+            "id": "air_temp",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "air_humidity",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "soil_temp",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "soil_humidity",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "lux",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "co2",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "pump",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "fan",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "light",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "heater",
+            "version": "2.0",
+            "status": "ONLINE"
+        },
+        {
+            "id": "window",
+            "version": "2.0",
+            "status": "ONLINE"
+        }
+    ]
+}

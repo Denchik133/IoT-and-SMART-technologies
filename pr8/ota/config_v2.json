@@ -1,0 +1,19 @@
+{
+    "config_version": 2,
+    "mqtt": {
+        "protocol": "MQTT",
+        "broker": "greenhouse",
+        "port": 1883
+    },
+    "monitoring": {
+        "heartbeat_interval": 5,
+        "device_health_check": true,
+        "offline_timeout": 15,
+        "anomaly_detection": true
+    },
+    "ota": {
+        "enabled": true,
+        "firmware_version": "2.0",
+        "rollback_supported": true
+    }
+}

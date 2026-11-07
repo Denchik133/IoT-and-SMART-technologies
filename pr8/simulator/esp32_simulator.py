@@ -4,9 +4,13 @@ import random
 import getpass
 import threading
 import sys
+from datetime import datetime, timezone
+
 import paho.mqtt.client as mqtt
 
-# НАЛАШТУВАННЯ MQTT
+# ==========================================
+# MQTT CONFIGURATION
+# ==========================================
 
 MQTT_BROKER = "localhost"
 MQTT_PORT = 1884
@@ -14,11 +18,14 @@ MQTT_USERNAME = "greenhouse_app"
 
 MQTT_TOPIC_PREFIX = "greenhouse"
 
-# ПОДІЯ УСПІШНОГО ПІДКЛЮЧЕННЯ
+SENSOR_INTERVAL = 3
+HEARTBEAT_INTERVAL = 5
 
 mqtt_connected = threading.Event()
 
+# ==========================================
 # MQTT TOPICS
+# ==========================================
 
 TOPICS = {
     "air_temp": f"{MQTT_TOPIC_PREFIX}/sensors/air_temp",
@@ -37,7 +44,33 @@ TOPICS = {
     "status": f"{MQTT_TOPIC_PREFIX}/system/status",
 }
 
-# ПОЧАТКОВІ ЗНАЧЕННЯ СЕНСОРІВ
+# 11 virtual devices
+DEVICE_IDS = [
+    "air_temp",
+    "air_humidity",
+    "soil_temp",
+    "soil_humidity",
+    "lux",
+    "co2",
+    "pump",
+    "fan",
+    "light",
+    "heater",
+    "window",
+]
+
+
+def current_timestamp():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def health_topic(device_id, field):
+    return f"{MQTT_TOPIC_PREFIX}/health/{device_id}/{field}"
+
+
+# ==========================================
+# INITIAL SENSOR VALUES
+# ==========================================
 
 air_temp = 24.0
 air_humidity = 60.0
@@ -48,7 +81,9 @@ soil_humidity = 55.0
 lux = 5000.0
 co2 = 450.0
 
-# СТАН АКТУАТОРІВ
+# ==========================================
+# ACTUATOR STATES
+# ==========================================
 
 actuators = {
     "pump": "OFF",
@@ -58,28 +93,73 @@ actuators = {
     "heater": "OFF",
 }
 
-# ФУНКЦІЯ ОБРОБКИ ПІДКЛЮЧЕННЯ MQTT
+
+# ==========================================
+# DEVICE HEALTH MONITORING
+# ==========================================
+
+def publish_device_health(client, status="ONLINE"):
+    timestamp = current_timestamp()
+
+    for device_id in DEVICE_IDS:
+        client.publish(
+            health_topic(device_id, "status"),
+            status,
+            qos=1,
+            retain=True
+        )
+
+        client.publish(
+            health_topic(device_id, "heartbeat"),
+            timestamp,
+            qos=0,
+            retain=False
+        )
+
+        client.publish(
+            health_topic(device_id, "last_seen"),
+            timestamp,
+            qos=1,
+            retain=True
+        )
+
+    print(
+        f"[HEALTH] {len(DEVICE_IDS)} devices: {status} "
+        f"| Last Seen: {timestamp}"
+    )
+
+
+# ==========================================
+# MQTT CONNECTION CALLBACK
+# ==========================================
 
 def on_connect(client, userdata, flags, reason_code, properties):
     if reason_code == 0:
-        print("[ESP32] Підключення до MQTT: Success")
+        print("[ESP32] MQTT connection: Success")
 
         mqtt_connected.set()
 
-        # Підписуємося на команди актуаторів
         client.subscribe(f"{MQTT_TOPIC_PREFIX}/actuators/#")
 
-        # Повідомляємо OpenHAB, що симулятор працює
-        client.publish(TOPICS["status"], "ONLINE", retain=True)
+        client.publish(
+            TOPICS["status"],
+            "ONLINE",
+            qos=1,
+            retain=True
+        )
 
-        print("[ESP32] MQTT topics subscribed")
-        print("[ESP32] Status: ONLINE")
+        publish_device_health(client, "ONLINE")
+
+        print("[ESP32] Actuator topics subscribed")
+        print("[ESP32] System status: ONLINE")
 
     else:
-        print(f"[ESP32] Помилка MQTT. Код: {reason_code}")
+        print(f"[ESP32] MQTT connection error: {reason_code}")
 
 
-# ФУНКЦІЯ ОТРИМАННЯ КОМАНД ВІД OPENHAB
+# ==========================================
+# MQTT MESSAGE CALLBACK
+# ==========================================
 
 def on_message(client, userdata, message):
     topic = message.topic
@@ -108,7 +188,9 @@ def on_message(client, userdata, message):
         print(f"[ACTUATOR] Heater: {value}")
 
 
-# ФУНКЦІЯ ПУБЛІКАЦІЇ ДАНИХ
+# ==========================================
+# SENSOR DATA GENERATION
+# ==========================================
 
 def publish_sensor_data(client):
     global air_temp
@@ -118,7 +200,7 @@ def publish_sensor_data(client):
     global lux
     global co2
 
-    # Невеликі природні зміни показників
+    # Natural changes
     air_temp += random.uniform(-0.4, 0.4)
     air_humidity += random.uniform(-1.0, 1.0)
 
@@ -128,7 +210,7 @@ def publish_sensor_data(client):
     lux += random.uniform(-300, 300)
     co2 += random.uniform(-15, 15)
 
-    # Обмеження значень
+    # Sensor limits
     air_temp = max(10, min(45, air_temp))
     air_humidity = max(20, min(90, air_humidity))
 
@@ -138,28 +220,25 @@ def publish_sensor_data(client):
     lux = max(0, min(20000, lux))
     co2 = max(300, min(1500, co2))
 
-    # Якщо насос увімкнений - ґрунт поступово зволожується
+    # Actuator influence
     if actuators["pump"] == "ON":
         soil_humidity += 3
 
-    # Якщо вентилятор працює - температура трохи знижується
     if actuators["fan"] == "ON":
         air_temp -= 0.5
 
-    # Якщо нагрівач працює - температура підвищується
     if actuators["heater"] == "ON":
         air_temp += 0.5
 
-    # Якщо лампа працює - збільшуємо освітленість
     if actuators["light"] == "ON":
         lux += 500
 
-    # Повторне обмеження після впливу актуаторів
+    # Apply limits again
     soil_humidity = max(0, min(100, soil_humidity))
     air_temp = max(10, min(45, air_temp))
     lux = max(0, min(20000, lux))
 
-    # Відправлення даних через MQTT
+    # Publish sensor values
     client.publish(TOPICS["air_temp"], f"{air_temp:.1f}")
     client.publish(TOPICS["air_humidity"], f"{air_humidity:.1f}")
 
@@ -169,19 +248,20 @@ def publish_sensor_data(client):
     client.publish(TOPICS["lux"], f"{lux:.0f}")
     client.publish(TOPICS["co2"], f"{co2:.0f}")
 
-    # Виведення інформації в консоль
     print(
-        f"[Дані відправлено] "
-        f"T_air: {air_temp:.1f}°C | "
+        f"[DATA] "
+        f"T_air: {air_temp:.1f} C | "
         f"Air_Hum: {air_humidity:.1f}% | "
-        f"Soil_T: {soil_temp:.1f}°C | "
+        f"Soil_T: {soil_temp:.1f} C | "
         f"Soil_Hum: {soil_humidity:.1f}% | "
         f"Lux: {lux:.0f} | "
         f"CO2: {co2:.0f}"
     )
 
 
-# СТВОРЕННЯ MQTT КЛІЄНТА
+# ==========================================
+# MQTT CLIENT
+# ==========================================
 
 client = mqtt.Client(
     mqtt.CallbackAPIVersion.VERSION2,
@@ -192,13 +272,15 @@ client.on_connect = on_connect
 client.on_message = on_message
 
 
-# ПІДКЛЮЧЕННЯ ДО MQTT BROKER
+# ==========================================
+# MQTT AUTHENTICATION
+# ==========================================
 
-print("[ESP32] Симулятор ESP32 запущено")
-print(f"[ESP32] Підключення до MQTT broker: {MQTT_BROKER}:{MQTT_PORT}")
-print(f"[ESP32] Користувач: {MQTT_USERNAME}")
+print("[ESP32] Smart Greenhouse Simulator started")
+print(f"[ESP32] MQTT broker: {MQTT_BROKER}:{MQTT_PORT}")
+print(f"[ESP32] Username: {MQTT_USERNAME}")
 
-password = getpass.getpass("Введіть пароль greenhouse_app: ")
+password = getpass.getpass("Enter MQTT password: ")
 
 client.username_pw_set(MQTT_USERNAME, password)
 
@@ -206,19 +288,18 @@ try:
     client.connect(MQTT_BROKER, MQTT_PORT, 60)
 
 except Exception as error:
-    print(f"[ESP32] ПОМИЛКА ПІДКЛЮЧЕННЯ: {error}")
-    print(f"[ESP32] Перевірте Mosquitto на порту {MQTT_PORT}.")
+    print(f"[ESP32] MQTT connection error: {error}")
     sys.exit(1)
 
 
-# ЗАПУСК MQTT NETWORK LOOP
+# ==========================================
+# START MQTT NETWORK LOOP
+# ==========================================
 
 client.loop_start()
 
-# ОЧІКУВАННЯ УСПІШНОЇ АВТОРИЗАЦІЇ
-
 if not mqtt_connected.wait(5):
-    print("[ESP32] Не вдалося підключитися або авторизуватися на MQTT broker.")
+    print("[ESP32] MQTT authentication or connection failed.")
 
     client.loop_stop()
     client.disconnect()
@@ -226,21 +307,39 @@ if not mqtt_connected.wait(5):
     sys.exit(1)
 
 
-# ОСНОВНИЙ ЦИКЛ СИМУЛЯТОРА
+# ==========================================
+# MAIN SIMULATION LOOP
+# ==========================================
+
+last_heartbeat = time.monotonic()
 
 try:
     while True:
         publish_sensor_data(client)
-        time.sleep(3)
+
+        current_time = time.monotonic()
+
+        if current_time - last_heartbeat >= HEARTBEAT_INTERVAL:
+            publish_device_health(client, "ONLINE")
+            last_heartbeat = current_time
+
+        time.sleep(SENSOR_INTERVAL)
 
 except KeyboardInterrupt:
-    print("\n[ESP32] Зупинка симулятора...")
+    print("\n[ESP32] Stopping simulator...")
 
-    client.publish(TOPICS["status"], "OFFLINE", retain=True)
+    publish_device_health(client, "OFFLINE")
 
-    time.sleep(0.5)
+    client.publish(
+        TOPICS["status"],
+        "OFFLINE",
+        qos=1,
+        retain=True
+    )
+
+    time.sleep(1)
 
     client.loop_stop()
     client.disconnect()
 
-    print("[ESP32] Симулятор завершено.")
+    print("[ESP32] Simulator stopped.")

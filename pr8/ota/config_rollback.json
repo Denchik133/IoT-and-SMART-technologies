@@ -1,0 +1,11 @@
+{
+  "config_version": 1,
+  "mqtt": {
+    "protocol": "MQTT",
+    "broker": "greenhouse",
+    "port": 1883
+  },
+  "monitoring": {
+    "heartbeat_interval": 5
+  }
+}
